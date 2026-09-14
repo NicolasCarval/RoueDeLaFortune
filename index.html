@@ -111,6 +111,14 @@
       return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
     }
 
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
     class GameApp {
       constructor() {
         this.boardEl = document.getElementById("board");
@@ -191,12 +199,15 @@
 
       async startSession(mode) {
         this.currentMode = mode;
-        this.bank = await this.loadFileBank(mode);
+        const rawBank = await this.loadFileBank(mode);
 
-        if (this.bank.length === 0) {
+        if (rawBank.length === 0) {
           alert(`Aucune énigme trouvée dans ${FILES[mode]} !`);
           return;
         }
+
+        // Mélange parfait de toute la liste
+        this.bank = shuffleArray(rawBank);
 
         this.lives = 5;
         this.cagnotte = 0;
@@ -275,13 +286,14 @@
       nextEnigme() {
         this.stopAuto();
         if (this.bank.length === 0) {
-          alert("Série terminée !");
+          alert("Série terminée ! Toutes les énigmes ont été jouées.");
           this.showMenu();
           return;
         }
 
-        const idx = Math.floor(Math.random() * this.bank.length);
-        this.currentEnigme = this.bank.splice(idx, 1)[0];
+        // Dépile simplement l'énigme suivante (déjà mélangée aléatoirement)
+        this.currentEnigme = this.bank.pop();
+        
         this.grid = this.formatToGrid(this.currentEnigme.clean);
         this.revealed = new Set();
         this.updateStatus();
