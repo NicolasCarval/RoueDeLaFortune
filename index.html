@@ -335,12 +335,12 @@
         const btn = document.getElementById("btn-auto");
         if (this.autoInterval) {
           this.stopAuto();
-          btn.textContent = "Auto 5s : OFF";
+          btn.textContent = "Auto 3s : OFF";
           btn.className = "btn-secondary";
         } else {
           this.revealRandomLetter();
-          this.autoInterval = setInterval(() => this.revealRandomLetter(), 5000);
-          btn.textContent = "Auto 5s : ON";
+          this.autoInterval = setInterval(() => this.revealRandomLetter(), 3000);
+          btn.textContent = "Auto 3s : ON";
           btn.className = "btn-success";
         }
       }
