@@ -93,37 +93,19 @@
     <div id="board" class="board-grid"></div>
   </div>
 
-  <div id="control-panel" class="control-panel">
-    <!-- Rendu dynamique JS -->
-  </div>
+  <div id="control-panel" class="control-panel"></div>
 
   <script>
-    // Banque de données initiale (Modifiable à volonté)
-    const DATA = {
-      courte: [
-        "Fromage / LA FONDUE SAVOYARDE",
-        "Botanique / UNE HERBE AROMATIQUE",
-        "Cinéma / UN FILM CULTE",
-        "Gastronomie / UNE TARTE AUX POMMES"
-      ],
-      principale: [
-        "Proverbe / PIERRE QUI ROULE N'AMASSE PAS MOUSSE",
-        "Chanson / TOURNER LES SERVIETTES ET CHANTER",
-        "Voyage / UN TOUR DU MONDE EN VOILIER",
-        "Expression / AVOIR DU PAIN SUR LA PLANCHE"
-      ],
-      finale: [
-        "Plante / OSEILLE",
-        "Métier / ARCHITECTE",
-        "Instrument / CLARINETTE",
-        "Animal / ORNITHORYNQUE"
-      ]
-    };
-
     const ROWS = 4;
     const COLS = 14;
     const VOYELLES = new Set("AEIOUY");
     const CONSONNES = new Set("BCDFGHJKLMNPQRSTVWXZ");
+
+    const FILES = {
+      courte: "enigmes_courtes.txt",
+      principale: "enigmes_principales.txt",
+      finale: "enigmes_finales.txt"
+    };
 
     function cleanString(str) {
       return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
@@ -159,6 +141,68 @@
             this.boardEl.appendChild(tile);
           }
         }
+      }
+
+      async loadFileBank(mode) {
+        const filename = FILES[mode];
+        try {
+          const response = await fetch(filename);
+          if (!response.ok) throw new Error("Fichier introuvable");
+          const text = await response.text();
+          
+          const lines = text.split("\n");
+          const parsed = [];
+
+          for (let line of lines) {
+            line = line.trim();
+            if (!line || !line.includes("/")) continue;
+
+            const [indice, sol] = line.split("/");
+            parsed.push({
+              indice: indice.trim(),
+              raw: sol.trim().toUpperCase(),
+              clean: cleanString(sol)
+            });
+          }
+          return parsed;
+        } catch (err) {
+          console.warn(`Impossible de charger ${filename}, utilisation des données de secours.`, err);
+          return [
+            { indice: "Exemple", raw: "LA ROUE DE LA FORTUNE", clean: "LA ROUE DE LA FORTUNE" }
+          ];
+        }
+      }
+
+      showMenu() {
+        this.stopAuto();
+        this.currentEnigme = null;
+        this.statusBar.style.display = "none";
+        this.btnHome.style.display = "none";
+        this.initEmptyBoard();
+
+        this.controlEl.innerHTML = `
+          <div class="menu-card">
+            <button class="btn-primary menu-btn" onclick="app.startSession('courte')">1. Énigme Rapide</button>
+            <button class="btn-success menu-btn" onclick="app.startSession('principale')">2. Manche Principale</button>
+            <button class="btn-danger menu-btn" onclick="app.startSession('finale')">3. La Finale</button>
+          </div>
+        `;
+      }
+
+      async startSession(mode) {
+        this.currentMode = mode;
+        this.bank = await this.loadFileBank(mode);
+
+        if (this.bank.length === 0) {
+          alert(`Aucune énigme trouvée dans ${FILES[mode]} !`);
+          return;
+        }
+
+        this.lives = 5;
+        this.cagnotte = 0;
+        this.statusBar.style.display = "flex";
+        this.btnHome.style.display = "block";
+        this.nextEnigme();
       }
 
       formatToGrid(solution) {
@@ -226,35 +270,6 @@
         document.getElementById("status-indice").textContent = `Indice : ${this.currentEnigme.indice}`;
         document.getElementById("status-cagnotte").textContent = `${this.cagnotte} €`;
         document.getElementById("status-vies").textContent = `Vies : ${this.lives}`;
-      }
-
-      showMenu() {
-        this.stopAuto();
-        this.currentEnigme = null;
-        this.statusBar.style.display = "none";
-        this.btnHome.style.display = "none";
-        this.initEmptyBoard();
-
-        this.controlEl.innerHTML = `
-          <div class="menu-card">
-            <button class="btn-primary menu-btn" onclick="app.startSession('courte')">1. Énigme Rapide</button>
-            <button class="btn-success menu-btn" onclick="app.startSession('principale')">2. Manche Principale</button>
-            <button class="btn-danger menu-btn" onclick="app.startSession('finale')">3. La Finale</button>
-          </div>
-        `;
-      }
-
-      startSession(mode) {
-        this.currentMode = mode;
-        this.bank = DATA[mode].map(line => {
-          const [indice, sol] = line.split("/");
-          return { indice: indice.trim(), raw: sol.trim(), clean: cleanString(sol) };
-        });
-        this.lives = 5;
-        this.cagnotte = 0;
-        this.statusBar.style.display = "flex";
-        this.btnHome.style.display = "block";
-        this.nextEnigme();
       }
 
       nextEnigme() {
@@ -417,7 +432,6 @@
 
       // --- Finale ---
       renderFinaleControls() {
-        // Dévoilement immédiat de R, S, T, L, N, E
         "RSTNLE".split("").forEach(c => {
           if (this.currentEnigme.clean.includes(c)) this.revealed.add(c);
         });
@@ -484,7 +498,7 @@
       window.addEventListener("load", () => {
         const swBlob = new Blob([`
           const CACHE = "roue-v1";
-          self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html"]))));
+          self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html", "./enigmes_courtes.txt", "./enigmes_principales.txt", "./enigmes_finales.txt"]))));
           self.addEventListener("fetch", e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
         `], { type: "text/javascript" });
         navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
