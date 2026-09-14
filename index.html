@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Roue de la Fortune - Entraînement</title>
+  
+  <!-- Configuration PWA Mobile -->
+  <meta name="theme-color" content="#0b1325" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Manifeste PWA embarqué via Data URI -->
+  <link rel="manifest" href='data:application/manifest+json;utf-8,{"name":"Roue de la Fortune","short_name":"RoueFortune","start_url":".","display":"standalone","background_color":"#0b1325","theme_color":"#0b1325","orientation":"portrait"}' />
+
+  <style>
+    :root {
+      --bg: #0b1325;
+      --card-bg: #111b33;
+      --board-border: #004d40;
+      --tile-empty: #002b24;
+      --tile-hidden: #ffffff;
+      --tile-revealed: #ffffff;
+      --gold: #ffd700;
+      --cyan: #00e5ff;
+      --green: #2e7d32;
+      --red: #c62828;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background: var(--bg); color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 12px; }
+
+    /* En-tête */
+    header { width: 100%; max-width: 600px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #1f2d50; margin-bottom: 10px; }
+    h1 { font-size: 1.1rem; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; }
+    .btn-nav { background: #1e293b; color: #fff; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+
+    /* Bandeau d'état */
+    .status-bar { width: 100%; max-width: 600px; display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9rem; }
+    .status-item { font-weight: bold; }
+    .status-indice { color: var(--cyan); }
+    .status-cagnotte { color: #69f0ae; }
+    .status-vies { color: #ff5252; }
+
+    /* Tableau à cases */
+    .board-container { width: 100%; max-width: 600px; background: var(--board-border); border: 4px solid #00332c; border-radius: 10px; padding: 6px; box-shadow: 0 8px 20px rgba(0,0,0,0.5); margin-bottom: 14px; }
+    .board-grid { display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; }
+    .tile { aspect-ratio: 1 / 1.15; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; border-radius: 2px; text-transform: uppercase; }
+    .tile.empty { background: var(--tile-empty); }
+    .tile.hidden { background: var(--tile-hidden); box-shadow: inset 0 0 3px rgba(0,0,0,0.4); }
+    .tile.revealed { background: var(--tile-revealed); color: #000; box-shadow: inset 0 0 2px rgba(0,0,0,0.5); }
+    .tile.symbol { background: var(--tile-revealed); color: #000; }
+
+    /* Zone de contrôle */
+    .control-panel { width: 100%; max-width: 600px; background: var(--card-bg); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .btn-group { display: flex; gap: 8px; }
+    button { cursor: pointer; border: none; outline: none; border-radius: 6px; padding: 10px 14px; font-weight: bold; font-size: 0.9rem; transition: opacity 0.15s; }
+    button:active { opacity: 0.7; }
+    .btn-primary { background: #0288d1; color: #fff; flex: 1; }
+    .btn-success { background: var(--green); color: #fff; flex: 1; }
+    .btn-warning { background: #f57c00; color: #fff; flex: 1; }
+    .btn-danger { background: var(--red); color: #fff; flex: 1; }
+    .btn-secondary { background: #475569; color: #fff; }
+
+    /* Inputs */
+    .input-row { display: flex; gap: 8px; }
+    input[type="text"] { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 10px 12px; color: #fff; font-size: 1rem; text-transform: uppercase; outline: none; }
+    input[type="text"]:focus { border-color: var(--cyan); }
+    .letter-input { width: 44px; text-align: center; flex: none; }
+
+    /* Clavier / Lettres jouées */
+    .played-letters { font-size: 0.8rem; color: #94a3b8; text-align: center; }
+
+    /* Menu */
+    .menu-card { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+    .menu-btn { padding: 16px; font-size: 1rem; border-radius: 8px; text-align: left; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Roue de la Fortune</h1>
+    <button id="btn-home" class="btn-nav" style="display:none;" onclick="app.showMenu()">⌂ Menu</button>
+  </header>
+
+  <div id="status-bar" class="status-bar" style="display:none;">
+    <div id="status-indice" class="status-item status-indice">Indice : -</div>
+    <div id="status-cagnotte" class="status-item status-cagnotte">0 €</div>
+    <div id="status-vies" class="status-item status-vies">Vies : 5</div>
+  </div>
+
+  <div class="board-container">
+    <div id="board" class="board-grid"></div>
+  </div>
+
+  <div id="control-panel" class="control-panel">
+    <!-- Rendu dynamique JS -->
+  </div>
+
+  <script>
+    // Banque de données initiale (Modifiable à volonté)
+    const DATA = {
+      courte: [
+        "Fromage / LA FONDUE SAVOYARDE",
+        "Botanique / UNE HERBE AROMATIQUE",
+        "Cinéma / UN FILM CULTE",
+        "Gastronomie / UNE TARTE AUX POMMES"
+      ],
+      principale: [
+        "Proverbe / PIERRE QUI ROULE N'AMASSE PAS MOUSSE",
+        "Chanson / TOURNER LES SERVIETTES ET CHANTER",
+        "Voyage / UN TOUR DU MONDE EN VOILIER",
+        "Expression / AVOIR DU PAIN SUR LA PLANCHE"
+      ],
+      finale: [
+        "Plante / OSEILLE",
+        "Métier / ARCHITECTE",
+        "Instrument / CLARINETTE",
+        "Animal / ORNITHORYNQUE"
+      ]
+    };
+
+    const ROWS = 4;
+    const COLS = 14;
+    const VOYELLES = new Set("AEIOUY");
+    const CONSONNES = new Set("BCDFGHJKLMNPQRSTVWXZ");
+
+    function cleanString(str) {
+      return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+    }
+
+    class GameApp {
+      constructor() {
+        this.boardEl = document.getElementById("board");
+        this.controlEl = document.getElementById("control-panel");
+        this.statusBar = document.getElementById("status-bar");
+        this.btnHome = document.getElementById("btn-home");
+
+        this.currentMode = null;
+        this.currentEnigme = null;
+        this.bank = [];
+        this.revealed = new Set();
+        this.lives = 5;
+        this.cagnotte = 0;
+        this.grid = [];
+        this.autoInterval = null;
+
+        this.initEmptyBoard();
+        this.showMenu();
+      }
+
+      initEmptyBoard() {
+        this.boardEl.innerHTML = "";
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const tile = document.createElement("div");
+            tile.className = "tile empty";
+            tile.id = `tile-${r}-${c}`;
+            this.boardEl.appendChild(tile);
+          }
+        }
+      }
+
+      formatToGrid(solution) {
+        const words = solution.split(" ");
+        let lines = [[], [], [], []];
+        let curRow = solution.length <= 24 ? 1 : 0;
+        let curLen = 0;
+
+        for (let w of words) {
+          const needed = curLen === 0 ? w.length : curLen + 1 + w.length;
+          if (needed <= COLS) {
+            lines[curRow].push(w);
+            curLen = needed;
+          } else {
+            if (curRow < ROWS - 1) {
+              curRow++;
+              lines[curRow].push(w);
+              curLen = w.length;
+            }
+          }
+        }
+
+        const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(" "));
+        lines.forEach((wordsInRow, rIdx) => {
+          const lineStr = wordsInRow.join(" ");
+          const startCol = Math.max(0, Math.floor((COLS - lineStr.length) / 2));
+          for (let i = 0; i < lineStr.length; i++) {
+            if (startCol + i < COLS) grid[rIdx][startCol + i] = lineStr[i];
+          }
+        });
+        return grid;
+      }
+
+      renderBoard() {
+        if (!this.currentEnigme) {
+          this.initEmptyBoard();
+          return;
+        }
+
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const ch = this.grid[r][c];
+            const tile = document.getElementById(`tile-${r}-${c}`);
+            tile.className = "tile";
+
+            if (ch === " ") {
+              tile.classList.add("empty");
+              tile.textContent = "";
+            } else if (["'", "-", ","].includes(ch)) {
+              tile.classList.add("symbol");
+              tile.textContent = ch;
+            } else if (this.revealed.has(ch)) {
+              tile.classList.add("revealed");
+              tile.textContent = ch;
+            } else {
+              tile.classList.add("hidden");
+              tile.textContent = "";
+            }
+          }
+        }
+      }
+
+      updateStatus() {
+        if (!this.currentEnigme) return;
+        document.getElementById("status-indice").textContent = `Indice : ${this.currentEnigme.indice}`;
+        document.getElementById("status-cagnotte").textContent = `${this.cagnotte} €`;
+        document.getElementById("status-vies").textContent = `Vies : ${this.lives}`;
+      }
+
+      showMenu() {
+        this.stopAuto();
+        this.currentEnigme = null;
+        this.statusBar.style.display = "none";
+        this.btnHome.style.display = "none";
+        this.initEmptyBoard();
+
+        this.controlEl.innerHTML = `
+          <div class="menu-card">
+            <button class="btn-primary menu-btn" onclick="app.startSession('courte')">1. Énigme Rapide</button>
+            <button class="btn-success menu-btn" onclick="app.startSession('principale')">2. Manche Principale</button>
+            <button class="btn-danger menu-btn" onclick="app.startSession('finale')">3. La Finale</button>
+          </div>
+        `;
+      }
+
+      startSession(mode) {
+        this.currentMode = mode;
+        this.bank = DATA[mode].map(line => {
+          const [indice, sol] = line.split("/");
+          return { indice: indice.trim(), raw: sol.trim(), clean: cleanString(sol) };
+        });
+        this.lives = 5;
+        this.cagnotte = 0;
+        this.statusBar.style.display = "flex";
+        this.btnHome.style.display = "block";
+        this.nextEnigme();
+      }
+
+      nextEnigme() {
+        this.stopAuto();
+        if (this.bank.length === 0) {
+          alert("Série terminée !");
+          this.showMenu();
+          return;
+        }
+
+        const idx = Math.floor(Math.random() * this.bank.length);
+        this.currentEnigme = this.bank.splice(idx, 1)[0];
+        this.grid = this.formatToGrid(this.currentEnigme.clean);
+        this.revealed = new Set();
+        this.updateStatus();
+
+        if (this.currentMode === "courte") this.renderCourteControls();
+        else if (this.currentMode === "principale") this.renderPrincipaleControls();
+        else if (this.currentMode === "finale") this.renderFinaleControls();
+
+        this.renderBoard();
+      }
+
+      // --- Manche Rapide ---
+      renderCourteControls() {
+        this.controlEl.innerHTML = `
+          <div class="btn-group">
+            <button class="btn-warning" onclick="app.revealRandomLetter()">Lettre Suivante</button>
+            <button id="btn-auto" class="btn-secondary" onclick="app.toggleAuto()">Auto 5s : OFF</button>
+          </div>
+          <div class="input-row">
+            <input type="text" id="input-sol" placeholder="Votre proposition..." />
+            <button class="btn-success" onclick="app.checkCourteSolution()">Buzzer</button>
+          </div>
+          <button class="btn-secondary" onclick="app.nextEnigme()">Passer</button>
+        `;
+        document.getElementById("input-sol").addEventListener("keyup", (e) => { if (e.key === "Enter") this.checkCourteSolution(); });
+      }
+
+      revealRandomLetter() {
+        const letters = [...new Set(this.currentEnigme.clean.replace(/[^A-Z]/g, ""))];
+        const unrevealed = letters.filter(l => !this.revealed.has(l));
+        if (unrevealed.length > 0) {
+          const pick = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+          this.revealed.add(pick);
+          this.renderBoard();
+        }
+      }
+
+      toggleAuto() {
+        const btn = document.getElementById("btn-auto");
+        if (this.autoInterval) {
+          this.stopAuto();
+          btn.textContent = "Auto 5s : OFF";
+          btn.className = "btn-secondary";
+        } else {
+          this.revealRandomLetter();
+          this.autoInterval = setInterval(() => this.revealRandomLetter(), 5000);
+          btn.textContent = "Auto 5s : ON";
+          btn.className = "btn-success";
+        }
+      }
+
+      stopAuto() {
+        if (this.autoInterval) clearInterval(this.autoInterval);
+        this.autoInterval = null;
+      }
+
+      checkCourteSolution() {
+        const input = document.getElementById("input-sol");
+        const val = cleanString(input.value);
+        if (!val) return;
+        if (val === this.currentEnigme.clean) {
+          this.cagnotte += 100;
+          alert(`Bravo ! Solution : ${this.currentEnigme.raw}`);
+          this.nextEnigme();
+        } else {
+          this.lives--;
+          this.updateStatus();
+          alert(`Faux ! "${val}" n'est pas la solution.`);
+          if (this.lives <= 0) this.gameOver();
+        }
+      }
+
+      // --- Manche Principale ---
+      renderPrincipaleControls() {
+        this.controlEl.innerHTML = `
+          <div class="input-row">
+            <input type="text" id="input-c" class="letter-input" maxlength="1" placeholder="C" />
+            <button class="btn-primary" onclick="app.playConsonne()">Consonne (+100€)</button>
+            <input type="text" id="input-v" class="letter-input" maxlength="1" placeholder="V" />
+            <button class="btn-warning" onclick="app.buyVoyelle()">Voyelle (-200€)</button>
+          </div>
+          <div class="input-row">
+            <input type="text" id="input-sol" placeholder="Résoudre la phrase..." />
+            <button class="btn-success" onclick="app.resolvePrincipale()">Résoudre</button>
+          </div>
+          <div class="played-letters" id="played-letters">Lettres trouvées : Aucune</div>
+          <button class="btn-secondary" onclick="app.nextEnigme()">Passer</button>
+        `;
+      }
+
+      playConsonne() {
+        const input = document.getElementById("input-c");
+        const char = cleanString(input.value);
+        input.value = "";
+        if (!CONSONNES.has(char)) return alert("Entrez une consonne valide.");
+        if (this.revealed.has(char)) return alert("Déjà trouvée.");
+
+        const count = (this.currentEnigme.clean.match(new RegExp(char, "g")) || []).length;
+        if (count > 0) {
+          this.revealed.add(char);
+          this.cagnotte += 100 * count;
+          this.updateStatus();
+          this.renderBoard();
+        } else {
+          this.lives--;
+          this.updateStatus();
+          alert(`Aucun ${char} ! (-1 vie)`);
+          if (this.lives <= 0) this.gameOver();
+        }
+        this.updatePlayedLetters();
+      }
+
+      buyVoyelle() {
+        const input = document.getElementById("input-v");
+        const char = cleanString(input.value);
+        input.value = "";
+        if (!VOYELLES.has(char)) return alert("Entrez une voyelle valide.");
+        if (this.cagnotte < 200) return alert("Il vous faut au moins 200 € !");
+        if (this.revealed.has(char)) return alert("Déjà révélée.");
+
+        this.cagnotte -= 200;
+        const count = (this.currentEnigme.clean.match(new RegExp(char, "g")) || []).length;
+        if (count > 0) this.revealed.add(char);
+        this.updateStatus();
+        this.renderBoard();
+        this.updatePlayedLetters();
+      }
+
+      updatePlayedLetters() {
+        const list = [...this.revealed].sort().join(", ") || "Aucune";
+        document.getElementById("played-letters").textContent = `Lettres trouvées : ${list}`;
+      }
+
+      resolvePrincipale() {
+        const input = document.getElementById("input-sol");
+        const val = cleanString(input.value);
+        if (!val) return;
+        if (val === this.currentEnigme.clean) {
+          alert(`Manche gagnée ! ${this.currentEnigme.raw}`);
+          this.nextEnigme();
+        } else {
+          this.lives--;
+          this.updateStatus();
+          alert("Mauvaise réponse ! (-1 vie)");
+          if (this.lives <= 0) this.gameOver();
+        }
+      }
+
+      // --- Finale ---
+      renderFinaleControls() {
+        // Dévoilement immédiat de R, S, T, L, N, E
+        "RSTNLE".split("").forEach(c => {
+          if (this.currentEnigme.clean.includes(c)) this.revealed.add(c);
+        });
+
+        this.controlEl.innerHTML = `
+          <div style="font-size:0.85rem; color:var(--cyan); text-align:center;">Base : R, S, T, L, N, E révélées</div>
+          <div class="input-row" style="justify-content:center;">
+            <input type="text" id="fc1" class="letter-input" maxlength="1" placeholder="C1" />
+            <input type="text" id="fc2" class="letter-input" maxlength="1" placeholder="C2" />
+            <input type="text" id="fc3" class="letter-input" maxlength="1" placeholder="C3" />
+            <input type="text" id="fv" class="letter-input" maxlength="1" placeholder="V" />
+            <button class="btn-warning" id="btn-apply-f" onclick="app.applyFinaleLetters()">Révéler</button>
+          </div>
+          <div class="input-row">
+            <input type="text" id="input-sol" placeholder="Proposition finale..." />
+            <button class="btn-success" onclick="app.checkFinale()">Valider</button>
+          </div>
+          <button class="btn-secondary" onclick="app.nextEnigme()">Passer</button>
+        `;
+      }
+
+      applyFinaleLetters() {
+        const c1 = cleanString(document.getElementById("fc1").value);
+        const c2 = cleanString(document.getElementById("fc2").value);
+        const c3 = cleanString(document.getElementById("fc3").value);
+        const v = cleanString(document.getElementById("fv").value);
+
+        const cons = [c1, c2, c3];
+        if (new Set(cons).size !== 3 || !cons.every(c => CONSONNES.has(c))) {
+          return alert("Entrez 3 consonnes distinctes valides.");
+        }
+        if (!VOYELLES.has(v)) return alert("Entrez une voyelle valide.");
+
+        [...cons, v].forEach(char => {
+          if (this.currentEnigme.clean.includes(char)) this.revealed.add(char);
+        });
+
+        document.getElementById("btn-apply-f").disabled = true;
+        this.renderBoard();
+      }
+
+      checkFinale() {
+        const input = document.getElementById("input-sol");
+        const val = cleanString(input.value);
+        if (val === this.currentEnigme.clean) {
+          alert(`Victoire éclatante ! Solution : ${this.currentEnigme.raw}`);
+        } else {
+          alert(`Perdu ! La solution était : ${this.currentEnigme.raw}`);
+        }
+        this.nextEnigme();
+      }
+
+      gameOver() {
+        this.stopAuto();
+        alert(`Partie terminée ! La solution était : ${this.currentEnigme.raw}`);
+        this.showMenu();
+      }
+    }
+
+    const app = new GameApp();
+
+    // Service Worker pour mise en cache hors-ligne
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        const swBlob = new Blob([`
+          const CACHE = "roue-v1";
+          self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html"]))));
+          self.addEventListener("fetch", e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
+        `], { type: "text/javascript" });
+        navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
