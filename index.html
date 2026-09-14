@@ -154,7 +154,10 @@
       async loadFileBank(mode) {
         const filename = FILES[mode];
         try {
-          const response = await fetch(filename);
+          // L'ajout de ?t=... et de cache: "no-store" force le téléchargement de la dernière version
+          const response = await fetch(`${filename}?t=${Date.now()}`, {
+            cache: "no-store"
+          });
           if (!response.ok) throw new Error("Fichier introuvable");
           const text = await response.text();
           
